@@ -15,8 +15,16 @@ def logged(exception, mode="console"):
     logger = logging.getLogger("file_logger")
     logger.setLevel(logging.ERROR)
     logger.handlers.clear()
-    handler = logging.StreamHandler() if mode == "console" else logging.FileHandler("log.txt", encoding="utf-8")
-    handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+
+    handler = (
+        logging.StreamHandler()
+        if mode == "console"
+        else logging.FileHandler("log.txt", encoding="utf-8")
+    )
+
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    )
     logger.addHandler(handler)
 
     def decorator(func):
@@ -40,8 +48,8 @@ class FileManager:
         self.filepath = filepath
         if not os.path.exists(self.filepath):
             try:
-                f = open(self.filepath, "w", encoding="utf-8")
-                f.close()
+                with open(self.filepath, "w", encoding="utf-8"):
+                    pass
             except Exception:
                 raise FileNotFound(f"Не вдалося створити файл '{self.filepath}'")
 
@@ -49,12 +57,11 @@ class FileManager:
     def read(self):
         try:
             result = []
-            f = open(self.filepath, "r", encoding="utf-8")
-            for line in f:
-                line = line.strip()
-                if line:
-                    result.append(line.split(","))
-            f.close()
+            with open(self.filepath, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        result.append(line.split(","))
             return result
         except Exception:
             raise FileCorrupted("Файл пошкоджено або недоступний")
@@ -62,34 +69,28 @@ class FileManager:
     @logged(FileCorrupted, mode="file")
     def write(self, data):
         try:
-            f = open(self.filepath, "w", encoding="utf-8")
-            for row in data:
-                f.write(",".join([str(item) for item in row]) + "\n")
-            f.close()
+            with open(self.filepath, "w", encoding="utf-8") as f:
+                for row in data:
+                    f.write(",".join(map(str, row)) + "\n")
         except Exception:
             raise FileCorrupted("Запис у файл неможливий")
 
     @logged(FileCorrupted, mode="console")
     def append_sorted(self, row):
         try:
-            # Тільки додаємо і сортуємо, нічого не виводимо
-            current_data = self.read()
+            data = self.read()
 
-            if not current_data:
+            if not data:
                 header = ["Ім'я", "Вік"]
                 body = []
             else:
-                header = current_data[0]
-                body = current_data[1:]
+                header = data[0]
+                body = data[1:]
 
-            new_row = [str(item) for item in row]
-            body.append(new_row)
-
-            # Сортування
+            body.append([str(item) for item in row])
             body.sort(key=lambda x: int(x[1]))
 
-            full_data = [header] + body
-            self.write(full_data)
+            self.write([header] + body)
 
         except Exception:
             raise FileCorrupted("Помилка при додаванні та сортуванні")
@@ -98,7 +99,6 @@ class FileManager:
     def show_average(self):
         try:
             data = self.read()
-            # Пропускаємо заголовок (перший рядок)
             body = data[1:]
 
             if not body:
@@ -106,14 +106,19 @@ class FileManager:
                 return
 
             ages = [int(person[1]) for person in body]
-            average_age = sum(ages) / len(ages)
+            avg_age = sum(ages) / len(ages)
 
-            print(f"--- Статистика ---")
-            print(f"Всього людей: {len(ages)}")
-            print(f"Середній вік: {average_age:.2f} років")
+            print(
+                f"--- Статистика ---\n"
+                f"Всього людей: {len(ages)}\n"
+                f"Середній вік: {avg_age:.2f} років"
+            )
 
         except Exception:
             raise FileCorrupted("Помилка розрахунку середнього віку")
+
+
+# ====== TESTING ======
 
 fm = FileManager("data.csv")
 
@@ -125,11 +130,9 @@ fm.append_sorted(["Олег", 60])
 fm.append_sorted(["Максим", 16])
 fm.append_sorted(["Олена", 19])
 
-
 print("Вміст відсортованого файлу:")
 for line in fm.read():
     print(line)
 
-print("\n")
-
+print()
 fm.show_average()
